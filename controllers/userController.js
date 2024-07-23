@@ -75,3 +75,52 @@ exports.initializeTransaction = async (req, res) => {
     });
   }
 };
+
+exports.verifyTransaction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      res
+        .status(404)
+        .send({ message: "User does not exist. Please log in or sign up" });
+    } else {
+      if (user.paystack_ref == "success")
+        return res.status(401).send({
+          data: {},
+          message: "Transaction has already been verified",
+        });
+
+      const response = await paystack.transaction.verify({
+        reference: user.paystack_ref,
+      });
+
+      if (response.data.status == "success") {
+        const data = {
+          paystack_ref: response.data.status,
+          amountDonated: response.data.amount,
+        };
+        await User.findByIdAndUpdate(id, data);
+
+        return res.status(200).send({
+          data: response.data,
+          message: response.message,
+          status: response.status,
+        });
+      } else {
+        return res.status(200).send({
+          data: response.data,
+          message: response.message,
+          status: response.status,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error initializing transaction:", error);
+    res.status(500).send({
+      message:
+        "Something went wrong while trying to verify the transaction. Please try again later.",
+      error: error.message,
+    });
+  }
+};
